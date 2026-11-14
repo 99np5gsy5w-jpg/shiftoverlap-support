@@ -1,0 +1,12 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Kinly//Authorized synthetic fixture//EN
+BEGIN:VEVENT
+UID:kinly-public-fixture-67
+SUMMARY:Fictional pottery class
+DTSTART;TZID=America/New_York:20261218T180000
+DTEND;TZID=America/New_York:20261218T190000
+LOCATION:Community studio
+DESCRIPTION:Kinly authorizes automated retrieval and calendar use of these fictional facts.
+END:VEVENT
+END:VCALENDAR
