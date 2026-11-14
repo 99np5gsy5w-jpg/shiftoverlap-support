@@ -1,0 +1,50 @@
+name: Kinly backup health
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+    inputs:
+      simulate_failure:
+        description: 'Test the failure notification without changing Kinly'
+        type: boolean
+        required: false
+        default: false
+permissions: {}
+concurrency:
+  group: kinly-backup-health
+  cancel-in-progress: false
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check independent backup health
+        env:
+          SIMULATE_FAILURE: ${{ inputs.simulate_failure || 'false' }}
+        shell: bash
+        run: |
+          python3 - <<'PYCODE'
+          import json, os, time, urllib.request, urllib.error
+          if os.environ.get('SIMULATE_FAILURE') == 'true':
+              raise SystemExit('Synthetic backup-alert delivery test. No live service was changed.')
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, *args, **kwargs):
+                  return None
+          opener = urllib.request.build_opener(NoRedirect)
+          endpoint = 'https://kinly-sites-gateway-test.kinly-backend.workers.dev/health/backup'
+          for attempt in range(3):
+              try:
+                  req = urllib.request.Request(endpoint + '?check=' + str(time.time_ns()), headers={'Accept':'application/json', 'User-Agent':'Kinly-Backup-Monitor/1'})
+                  with opener.open(req, timeout=15) as response:
+                      raw = response.read(1025)
+                      healthy = response.status == 200 and len(raw) <= 1024 and response.headers.get('Cache-Control') == 'no-store' and json.loads(raw) == {'ok': True}
+                  if healthy:
+                      print('Backup and recent restore verification are healthy. No customer data was read.')
+                      break
+              except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+                  pass
+              if attempt < 2:
+                  time.sleep(15)
+          else:
+              raise SystemExit('Kinly backup check failed: stale/failed backup, overdue restore drill, or unreachable service. Check the private backup dashboard. Do not restore or change billing automatically.')
+          PYCODE
